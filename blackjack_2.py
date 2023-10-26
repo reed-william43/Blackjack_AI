@@ -13,11 +13,33 @@ env = gym.make("Blackjack-v1", sab=True)
 done = False
 observation, info = env.reset()
 
-action = env.action_space.sample()
-observation, reward, terminated, truncacted, info = env.step(action)
+player_hand = []
+
+for _ in range(2):
+    player_hand.append(observation[0])
+    action = env.action_space.sample()
+    observation, reward, terminated, truncacted, info = env.step(action)
+
+
 
 # Create a Q-learning agent - class taken from {source}, parameters changed for better training
 class BlackjackAgent:
+    rank = {
+        "two": 2,
+        "three": 3,
+        "four": 4,
+        "five": 5,
+        "six": 6,
+        "seven": 7,
+        "eight": 8,
+        "nine": 9,
+        "ten": 10,
+        "jack": 10,
+        "queen": 10,
+        "king": 10,
+        "ace": (1,11)
+    }
+    
     def __init__(
         self,
         learning_rate: float,
@@ -40,17 +62,72 @@ class BlackjackAgent:
         
     def get_action(self, obs: tuple[int, int, bool]) -> int:
         # card counting logic
+        player_sum = obs[0]
+        dealer_card = obs[1]
         
-        
+        # check if dealer has an ace
+        ace = BlackjackAgent.player_check(self, player_hand, BlackjackAgent.rank)
+        if ace == 11:
+            return int(np.argmax(self.q_values[obs]))
+        else:
+            return env.action_space.sample()
+        '''
         if np.random.random() < self.epsilon:
             return env.action_space.sample()
         
         else:
             return int(np.argmax(self.q_values[obs]))
+        '''
+    def dealer_check(self, dealer_card):
+        num_ace = 0
+        use_one = 0
+        
+        if dealer_card.rank == "ace":
+            num_ace += 1
+        else:
+            use_one += dealer_card.value
+            
+        if num_ace > 0:
+            ace_count = 0
+            
+            while ace_count < num_ace:
+                use_el = use_one + 10
+                if use_el > 21:
+                    return use_one
+                elif use_el >=17 and use_el <= 21:
+                    return use_el
+                else:
+                    use_one = use_el
+                ace_count += 1
+                
+            return use_one
+        
+    def player_check(self, player_hand, rank):
+        num_ace = 0
+        use_one = 0
+        for i in range(len(player_hand)):
+            if player_hand[i] == 1 or player_hand[i] == 11:
+                num_ace += 1
+            else:
+                use_one += player_hand[i]
+            
+        if num_ace > 0:
+            ace_count = 0
+            while ace_count < num_ace:
+                use_el = use_one + 10
+                if use_el > 21:
+                    return use_one
+                elif use_el >=18 and use_el <= 21:
+                    return use_el
+                else:
+                    use_one = use_el
+                ace_count += 1
+                
+            return use_one
         
     def update(
         self,
-        obs: tuple[int, int, bool],
+        obs: tuple[int, int, bool], # [player sum, dealer showing, usable ace(T/F)]
         action: int,
         reward: float,
         terminated: bool,
@@ -70,21 +147,7 @@ class BlackjackAgent:
         self.epsilon = max(self.final_epsilon, self.epsilon - self.epsilon_decay)
 
 
-ranks = {
-    "two": 2,
-    "three": 3,
-    "four": 4,
-    "five": 5,
-    "six": 6,
-    "seven": 7,
-    "eight": 8,
-    "nine": 9,
-    "ten": 10,
-    "jack": 10,
-    "queen": 10,
-    "king": 10,
-    "ace": (1,11)
-}
+
 
 class Suits(enum.Enum):
     spades = "spades"
@@ -106,7 +169,7 @@ class Deck:
         self.cards=[]
         for i in range(num):
             for suit in Suits:
-                for rank, value in ranks.items():
+                for rank, value in rank.items():
                     self.cards.append(Cards(suit, rank, value))
                     
     def shuffle_deck(self):
@@ -191,7 +254,7 @@ def make_plots(value_grid, policy_grid, title: str):
 
 # Set learning rate and amount(number of games)
 learning_rate = 0.0001
-num_episodes = 1000000
+num_episodes = 10000
 start_epsilon = 1.0
 epsilon_decay = start_epsilon / (num_episodes / 2)
 final_epsilon = 0.1
