@@ -15,6 +15,7 @@ observation, info = env.reset()
 
 player_hand = []
 
+# Determine which cards player has in hand (for card counting)
 for _ in range(2):
     player_hand.append(observation[0])
     action = env.action_space.sample()
@@ -64,14 +65,24 @@ class BlackjackAgent:
         # card counting logic
         player_sum = obs[0]
         dealer_card = obs[1]
+        card_counting = BlackjackAgent.dealer_check(self, dealer_card)
+        card_counting += BlackjackAgent.player_check(self, player_hand)
         
+        if card_counting > 0:
+            return env.action_space.sample()
+        elif card_counting < 0:
+            return int(np.argmax(self.q_values[obs]))
+        elif card_counting == 0:                 
+            return int(np.argmax(self.q_values[obs])) # this should make the player/AI play more aggressively
+         
+        '''
         # check if dealer has an ace
-        ace = BlackjackAgent.player_check(self, player_hand, BlackjackAgent.rank)
+        ace = BlackjackAgent.player_check(self, player_hand)
         if ace == 11:
             return int(np.argmax(self.q_values[obs]))
         else:
             return env.action_space.sample()
-        '''
+        
         if np.random.random() < self.epsilon:
             return env.action_space.sample()
         
@@ -81,7 +92,18 @@ class BlackjackAgent:
     def dealer_check(self, dealer_card):
         num_ace = 0
         use_one = 0
+        card_count = 0
         
+        if dealer_card >= 2 and dealer_card <= 6:  # if dealer has a card in the range 2-6
+            card_count += 1
+        elif dealer_card >=7 and dealer_card <= 9: # if dealer has a card in the range 7-9
+            card_count += 0
+        else:                                      # if dealer has a card in the rand 10-A
+            card_count -= 1
+            
+        return card_count
+        
+        '''
         if dealer_card.rank == "ace":
             num_ace += 1
         else:
@@ -101,10 +123,23 @@ class BlackjackAgent:
                 ace_count += 1
                 
             return use_one
+        '''
         
-    def player_check(self, player_hand, rank):
+    def player_check(self, player_hand):
         num_ace = 0
         use_one = 0
+        card_count = 0
+        
+        if player_hand >= 2 and player_hand <= 6:  # if dealer has a card in the range 2-6
+            card_count += 1
+        elif player_hand >=7 and player_hand <= 9: # if dealer has a card in the range 7-9
+            card_count += 0
+        else:                                      # if dealer has a card in the rand 10-A
+            card_count -= 1
+            
+        return card_count
+        
+        '''
         for i in range(len(player_hand)):
             if player_hand[i] == 1 or player_hand[i] == 11:
                 num_ace += 1
@@ -124,6 +159,7 @@ class BlackjackAgent:
                 ace_count += 1
                 
             return use_one
+        '''
         
     def update(
         self,
@@ -145,8 +181,6 @@ class BlackjackAgent:
         
     def decay_epsilon(self):
         self.epsilon = max(self.final_epsilon, self.epsilon - self.epsilon_decay)
-
-
 
 
 class Suits(enum.Enum):
@@ -182,8 +216,6 @@ class Deck:
         if len(self.cards) > 0:
             return self.cards[0]
     
-    
-
 # Define plotting functions
 def make_grids(agent, usable_ace=False):
     state_value = defaultdict(float)
